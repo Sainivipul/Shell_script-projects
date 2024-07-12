@@ -1,0 +1,60 @@
+#!/bin/bash
+set -e
+
+echo "Proceeding to auto heal and health check"
+
+path=$(pwd)
+
+echo "Executing script at $path"
+
+alert=90
+
+backup_date=$(date +'%m/%d/%Y %H:%M:%S')
+df -H | awk 'NR>1{print $5 " " $1}' | while read output; do
+    echo "Disk Details: $output"
+
+    usage=$(echo "$output" | awk '{print $1}' | cut -d'%' -f1)
+
+    file_sys=$(echo "$output" | awk '{print $2}')
+
+    echo "$usage"
+
+    if [ "$usage" -gt "$alert" ]; then
+        echo "CRITICAL DISK ALERT FOUND"
+        echo "Proceeding to Autohealing..."
+        echo "Iteration 1 Archiving files larger than 20MB"
+        DAYS=10
+        DEPTH=1
+        RUN=0
+        echo "Checking for archive folder fulfilling requirements..."
+        if ! mkdir "$path/archive"; then
+            echo "Failed to create archive directory." >&2
+            exit 1
+        fi
+        echo "Checking for files larger than 20 MB"
+        for i in $(find "$path" -maxdepth "$DEPTH" -type f -size +20MB -mtime +20); do
+            if [ $RUN -eq 0 ]; then 
+                echo "$(date "+%Y-%m-%d %H:%M:%S") Archiving $i ==> $path/archive"
+                if ! gzip "$i"; then
+                    echo "Failed to compress $i." >&2
+                    exit 1
+                fi
+                if ! mv "$i.gz" "$path/archive"; then
+                    echo "Failed to move $i.gz to archive directory." >&2
+                    exit 1
+                fi
+            fi
+            echo "Files archived successfully" 
+            if [ "$usage" -gt "$alert" ]; then
+                echo "CRITICAL DISK ALERT FOUND"
+                echo "Please raise a P1 ticket"
+            fi
+            echo "Disk space is under threshold"
+        done
+    fi
+
+   
+
+done
+
+ echo " Disk is clean proceeding for patchin prechecks "
